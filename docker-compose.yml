@@ -1,0 +1,14 @@
+services:
+  node-api:
+    build: .
+    container_name: news-app-auto-api
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+    networks:
+      - web
+
+networks:
+  web:
+    external: true

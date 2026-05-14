@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="CopilotDiffPersistence">
+    <option name="pendingDiffs">
+      <map>
+        <entry key="$PROJECT_DIR$/src/controllers/test/test.controller.ts">
+          <value>
+            <PendingDiffInfo>
+              <option name="filePath" value="$PROJECT_DIR$/src/controllers/test/test.controller.ts" />
+              <option name="updatedContent" value="import type { Request, Response } from &quot;express&quot;;&#10;import { randomUUID } from &quot;node:crypto&quot;;&#10;import { AppError } from &quot;../../utils/appError.js&quot;;&#10;import type { TestResource } from &quot;../../types/api.js&quot;;&#10;&#10;const testStore = new Map&lt;string, TestResource&gt;();&#10;&#10;export const listTestsController = (_req: Request, res: Response) =&gt; {&#10;  res.status(200).json({&#10;    data: Array.from(testStore.values())&#10;  });&#10;};&#10;&#10;export const getTestController = (req: Request, res: Response) =&gt; {&#10;  const resource = testStore.get(req.params.id);&#10;&#10;  if (!resource) {&#10;    throw new AppError(404, &quot;Test resource not found&quot;);&#10;  }&#10;&#10;  res.status(200).json({ data: resource });&#10;};&#10;&#10;export const createTestController = (req: Request, res: Response) =&gt; {&#10;  const now = new Date().toISOString();&#10;  const id = randomUUID();&#10;&#10;  const resource: TestResource = {&#10;    id,&#10;    name: req.body.name,&#10;    active: req.body.active ?? true,&#10;    createdAt: now,&#10;    updatedAt: now&#10;  };&#10;&#10;  testStore.set(id, resource);&#10;&#10;  res.status(201).json({ data: resource });&#10;};&#10;&#10;export const updateTestController = (req: Request, res: Response) =&gt; {&#10;  const existingResource = testStore.get(req.params.id);&#10;&#10;  if (!existingResource) {&#10;    throw new AppError(404, &quot;Test resource not found&quot;);&#10;  }&#10;&#10;  const updatedResource: TestResource = {&#10;    ...existingResource,&#10;    ...req.body,&#10;    updatedAt: new Date().toISOString()&#10;  };&#10;&#10;  testStore.set(existingResource.id, updatedResource);&#10;&#10;  res.status(200).json({ data: updatedResource });&#10;};&#10;&#10;export const deleteTestController = (req: Request, res: Response) =&gt; {&#10;  const exists = testStore.has(req.params.id);&#10;&#10;  if (!exists) {&#10;    throw new AppError(404, &quot;Test resource not found&quot;);&#10;  }&#10;&#10;  testStore.delete(req.params.id);&#10;&#10;  res.status(204).send();&#10;};&#10;" />
+            </PendingDiffInfo>
+          </value>
+        </entry>
+        <entry key="$PROJECT_DIR$/src/routes/test/test.routes.ts">
+          <value>
+            <PendingDiffInfo>
+              <option name="filePath" value="$PROJECT_DIR$/src/routes/test/test.routes.ts" />
+              <option name="updatedContent" value="import { Router } from &quot;express&quot;;&#10;import {&#10;  createTestController,&#10;  deleteTestController,&#10;  getTestController,&#10;  listTestsController,&#10;  updateTestController&#10;} from &quot;../../controllers/test/test.controller.js&quot;;&#10;import { validate } from &quot;../../middleware/validate.js&quot;;&#10;import {&#10;  createTestSchema,&#10;  testParamsSchema,&#10;  updateTestSchema&#10;} from &quot;../../schemas/test/test.schema.js&quot;;&#10;&#10;export const testRouter = Router();&#10;&#10;testRouter.get(&quot;/&quot;, listTestsController);&#10;testRouter.get(&quot;/:id&quot;, validate({ params: testParamsSchema }), getTestController);&#10;testRouter.post(&quot;/&quot;, validate({ body: createTestSchema }), createTestController);&#10;testRouter.put(&#10;  &quot;/:id&quot;,&#10;  validate({ params: testParamsSchema, body: updateTestSchema }),&#10;  updateTestController&#10;);&#10;testRouter.delete(&quot;/:id&quot;, validate({ params: testParamsSchema }), deleteTestController);&#10;" />
+            </PendingDiffInfo>
+          </value>
+        </entry>
+        <entry key="$PROJECT_DIR$/src/schemas/test/test.schema.ts">
+          <value>
+            <PendingDiffInfo>
+              <option name="filePath" value="$PROJECT_DIR$/src/schemas/test/test.schema.ts" />
+              <option name="updatedContent" value="import { z } from &quot;zod&quot;;&#10;&#10;export const testParamsSchema = z.object({&#10;  id: z.string().min(1)&#10;});&#10;&#10;export const createTestSchema = z.object({&#10;  name: z.string().trim().min(1).max(100),&#10;  active: z.boolean().default(true)&#10;});&#10;&#10;export const updateTestSchema = createTestSchema.partial().refine(&#10;  (value) =&gt; Object.keys(value).length &gt; 0,&#10;  &quot;At least one field must be provided&quot;&#10;);&#10;" />
+            </PendingDiffInfo>
+          </value>
+        </entry>
+      </map>
+    </option>
+  </component>
+</project>
