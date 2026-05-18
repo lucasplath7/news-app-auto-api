@@ -20,6 +20,8 @@ jobs:
           git reset --hard origin/main
 
       - name: Rebuild and restart container
+        env:
+          DB_URL: ${{ secrets.DB_URL }}
         run: |
           docker compose down
           docker compose up -d --build

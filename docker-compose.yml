@@ -6,9 +6,13 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=80
+      - DB_URL=${DB_URL}
     networks:
       - web
+      - backend
 
 networks:
   web:
+    external: true
+  backend:
     external: true
