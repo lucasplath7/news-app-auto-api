@@ -22,6 +22,7 @@ jobs:
       - name: Rebuild and restart container
         env:
           DB_URL: ${{ secrets.DB_URL }}
+          REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
         run: |
           docker compose down
           docker compose up -d --build
