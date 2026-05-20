@@ -1,4 +1,4 @@
-import Redis from "ioredis";
+import * as ioredis from "ioredis";
 import { env } from "./env.js";
 import { logger } from "./logger.js";
 
@@ -12,13 +12,13 @@ const redisConfig = {
   lazyConnect: true
 };
 
-export const redis = new Redis(redisConfig);
-export const redisSub = new Redis(redisConfig);
+export const redis = new ioredis.Redis(redisConfig);
+export const redisSub = new ioredis.Redis(redisConfig);
 
 redis.on("connect", () => logger.info("Redis client connected"));
-redis.on("error", (err) => logger.error("Redis client error", err));
+redis.on("error", (err: Error) => logger.error("Redis client error", err));
 
 redisSub.on("connect", () => logger.info("Redis subscriber connected"));
-redisSub.on("error", (err) => logger.error("Redis subscriber error", err));
+redisSub.on("error", (err: Error) => logger.error("Redis subscriber error", err));
 
 

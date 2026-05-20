@@ -10,11 +10,11 @@ export function initSocket(httpServer: HttpServer): SocketServer {
     cors: { origin: "*" }
   });
 
-  redisSub.subscribe(COUNTER_CHANNEL, (err) => {
+  redisSub.subscribe(COUNTER_CHANNEL, (err: Error | null | undefined) => {
     if (err) logger.error("Failed to subscribe to counter channel", err);
   });
 
-  redisSub.on("message", (channel, message) => {
+  redisSub.on("message", (channel: string, message: string) => {
     if (channel === COUNTER_CHANNEL) {
       io.emit("counter:value", { value: message });
     }
