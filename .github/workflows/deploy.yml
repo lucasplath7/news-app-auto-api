@@ -23,6 +23,7 @@ jobs:
         env:
           DB_URL: ${{ secrets.DB_URL }}
           REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
           docker compose down
           docker compose up -d --build
