@@ -1,7 +1,7 @@
 import type { Request, Response } from "express";
 import { asyncHandler } from "../../utils/asyncHandler.js";
 import { streamStructuredResponse } from "../../utils/streamStructuredResponse.js";
-import { toDateRangeString } from "../../utils/dateHelpers.js";
+import { toDateRangeString, formatYYYYMMDD, addDays } from "../../utils/dateHelpers.js";
 import {
   getPoliticsNewsQuerySchema,
   politicsNewsItemSchema,
@@ -9,7 +9,12 @@ import {
 } from "../../schemas/news/politics.schemas.js";
 import type { GetPoliticsNewsQuery } from "../../schemas/news/politics.schemas.js";
 
-// ─── Prompt Builder ───────────────────────────────────────────────────────────
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const POLITICS_MODEL = "gpt-4.1-mini";
+const POLITICS_PROMPT_VERSION = "v1";
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function buildPrompt(query: GetPoliticsNewsQuery): string {
   const dateRange = query.generalRange
@@ -18,15 +23,35 @@ function buildPrompt(query: GetPoliticsNewsQuery): string {
   return `Summarize the top 7 most significant United States political news stories from ${dateRange}.`;
 }
 
+/**
+ * Resolves explicit `from`/`to` date strings from the validated query,
+ * deriving them from the `generalRange` preset when no explicit dates are given.
+ */
+function resolveDateRange(query: GetPoliticsNewsQuery): { from: string; to: string } {
+  if (query.generalRange) {
+    const now = new Date();
+    const today = formatYYYYMMDD(now);
+    if (query.generalRange === "week") {
+      return { from: formatYYYYMMDD(addDays(now, -7)), to: today };
+    }
+    if (query.generalRange === "yesterday") {
+      return { from: formatYYYYMMDD(addDays(now, -1)), to: today };
+    }
+    return { from: today, to: today };
+  }
+  return { from: query.from, to: query.to };
+}
+
 // ─── Controller ───────────────────────────────────────────────────────────────
 
 export const getPoliticsNewsController = asyncHandler(
   async (req: Request<{}, {}, {}, GetPoliticsNewsQuery>, res: Response) => {
     const validatedQuery = getPoliticsNewsQuerySchema.parse(req.query);
     const userPrompt = buildPrompt(validatedQuery);
+    const resolvedDateRange = resolveDateRange(validatedQuery);
 
     await streamStructuredResponse(req, res, {
-      model: "gpt-4.1-mini",
+      model: POLITICS_MODEL,
       messages: [
         {
           role: "system",
@@ -52,6 +77,13 @@ export const getPoliticsNewsController = asyncHandler(
       tools: [{ type: "web_search" }],
       cacheKey: `politics_news_${JSON.stringify(validatedQuery)}`,
       clientOptions: { timeout: undefined },
+      doneMetadata: {
+        model: POLITICS_MODEL,
+        promptVersion: POLITICS_PROMPT_VERSION,
+        from: resolvedDateRange.from,
+        to: resolvedDateRange.to,
+        ...(validatedQuery.generalRange ? { generalRange: validatedQuery.generalRange } : {}),
+      },
     });
   }
 );

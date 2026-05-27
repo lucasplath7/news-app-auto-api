@@ -57,6 +57,13 @@ export interface StreamingRequestConfig<TItem, TBatch> {
 
   /** OpenAI client options (timeout, api key overrides, etc.). */
   clientOptions?: ConstructorParameters<typeof OpenAI>[0];
+
+  /**
+   * Optional key/value pairs to merge into the `done` SSE event payload.
+   * Use this to surface caller-specific metadata (e.g. model, prompt version,
+   * resolved date range) without coupling this utility to any one feature.
+   */
+  doneMetadata?: Record<string, unknown>;
 }
 
 // ─── Retry helper ────────────────────────────────────────────────────────────
@@ -166,7 +173,7 @@ export async function streamStructuredResponse<TItem, TBatch>(
 
         case 'response.completed':
           logger.info('OpenAI response completed', { usage: event.response.usage });
-          res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+          res.write(`data: ${JSON.stringify({ done: true, ...(config.doneMetadata ?? {}) })}\n\n`);
           break;
 
         case 'response.failed':
