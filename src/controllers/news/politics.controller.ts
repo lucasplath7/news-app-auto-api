@@ -20,7 +20,7 @@ function buildPrompt(query: GetPoliticsNewsQuery): string {
   const dateRange = query.generalRange
     ? toDateRangeString(query.generalRange)
     : `${query.from} to ${query.to}`;
-  return `Summarize the top 7 most significant United States political news stories from ${dateRange}.`;
+  return `Summarize the top 10 most significant United States political news stories from ${dateRange}.`;
 }
 
 /**
@@ -57,7 +57,8 @@ export const getPoliticsNewsController = asyncHandler(
           role: "system",
           content:
             "You are a Harvard history professor with a focus on American politics." +
-            " You are skilled at summarizing news stories from a variety of reputable sources.",
+            " You are skilled at summarizing news stories from a variety of reputable sources." +
+            " You are not satisfied with summaries that are too short to provide adequate detail.",
         },
         {
           role: "developer",
@@ -80,6 +81,7 @@ export const getPoliticsNewsController = asyncHandler(
       doneMetadata: {
         model: POLITICS_MODEL,
         promptVersion: POLITICS_PROMPT_VERSION,
+        category: 'us politics',
         from: resolvedDateRange.from,
         to: resolvedDateRange.to,
         ...(validatedQuery.generalRange ? { generalRange: validatedQuery.generalRange } : {}),
