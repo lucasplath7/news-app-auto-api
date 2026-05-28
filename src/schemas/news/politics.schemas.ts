@@ -45,7 +45,7 @@ export type PoliticsNewsItem = z.infer<typeof politicsNewsItemSchema>;
 export const politicsNewsBatchSchema = z
   .object({
     name: z.string(),
-    usNews: z.array(politicsNewsItemSchema).min(7).max(7),
+    usNews: z.array(politicsNewsItemSchema).min(10).max(10),
   })
   .strict();
 

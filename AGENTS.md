@@ -102,7 +102,7 @@ export const createArticleController = asyncHandler(
     const { title, content, sourceUrl } = req.body;
 
     const existingArticle = await db
-      .selectFrom("news_app.articles")
+      .selectFrom("newsapi.articles")
       .select(["id", "title"])
       .where("source_url", "=", sourceUrl)
       .executeTakeFirst();
@@ -113,7 +113,7 @@ export const createArticleController = asyncHandler(
     }
 
     const createdArticle = await db
-      .insertInto("news_app.articles")
+      .insertInto("newsapi.articles")
       .values({ id: sql`gen_random_uuid()`, title, content, source_url: sourceUrl })
       .returning(["id", "title"])
       .executeTakeFirst();
