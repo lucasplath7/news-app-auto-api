@@ -22,11 +22,7 @@ export const feedStoryItemSchema = z
     summary: z.string().min(1),
     sources: z
       .array(z.string().min(1))
-      .min(3)
-      .refine(
-        (sources) => !sources.some((source) => /wikipedia/i.test(source)),
-        'sources must not include Wikipedia',
-      ),
+      .min(2),
   })
   .strict();
 

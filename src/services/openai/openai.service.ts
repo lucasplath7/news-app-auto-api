@@ -89,6 +89,7 @@ export async function callStructuredOpenAI<TBatch>(
       model: config.model,
       input: config.messages as any,
       ...(config.tools?.length ? { tools: config.tools } : {}),
+      max_output_tokens: 4096,
       text: {
         format: zodTextFormat(config.batchSchema as z.ZodTypeAny, config.batchSchemaName),
       },
@@ -103,7 +104,25 @@ export async function callStructuredOpenAI<TBatch>(
     throw new AppError(500, 'OpenAI response contained no parseable output text');
   }
 
-  const rawJson: unknown = JSON.parse(outputText);
-  return config.batchSchema.parse(rawJson);
+  let rawJson: unknown;
+  try {
+    rawJson = JSON.parse(outputText);
+  } catch (parseError) {
+    logger.error('Failed to parse OpenAI output as JSON', { outputText });
+    throw new AppError(500, 'OpenAI response was not valid JSON');
+  }
+
+  try {
+    return config.batchSchema.parse(rawJson);
+  } catch (err: any) {
+    throw new AppError(500, err.message);
+  }
+
+  try {
+    return config.batchSchema.parse(rawJson);
+  } catch (err: any) {
+    throw new AppError(500, err.message);
+  }
+
 }
 
