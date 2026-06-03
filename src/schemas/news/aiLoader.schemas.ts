@@ -20,6 +20,7 @@ export const feedStoryItemSchema = z
   .object({
     title: z.string().min(1),
     summary: z.string().min(1),
+    publishedAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     sources: z
       .array(z.string().min(1))
       .min(2),
@@ -35,4 +36,3 @@ export const feedStoryBatchSchema = z
   .strict();
 
 export type FeedStoryBatch = z.infer<typeof feedStoryBatchSchema>;
-
