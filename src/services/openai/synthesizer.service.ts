@@ -59,7 +59,8 @@ export async function synthesizeClusters(
           ' and a concise, descriptive title (the "title" field).' +
           ' Synthesize from the provided source titles and excerpts only — do not introduce external facts.' +
           ' Use the exact clusterIndex number shown for each cluster.' +
-          ' Every cluster must produce exactly one story brief.',
+          ` Return exactly ${qualifyingClusters.length} briefs total, with each clusterIndex used once.` +
+          ` You must cover every clusterIndex from 0 through ${qualifyingClusters.length - 1} exactly one time.`,
       },
       {
         role: 'user',
@@ -72,21 +73,22 @@ export async function synthesizeClusters(
     batchSchemaName: 'synthesized_brief_batch',
   });
 
-  // Populate sources from real cluster URLs — never from model output.
-  return result.briefs
-    .filter(
-      (brief) => brief.clusterIndex >= 0 && brief.clusterIndex < qualifyingClusters.length,
-    )
-    .map((brief) => {
-      const cluster = qualifyingClusters[brief.clusterIndex]!;
-      const uniqueSourceUrls = [
-        ...new Set(cluster.candidates.map((candidate) => candidate.url)),
-      ];
-      return {
-        title: brief.title,
-        summary: brief.summary,
-        sources: uniqueSourceUrls,
-      };
-    });
-}
+  const uniqueBriefByClusterIndex = new Map<number, (typeof result.briefs)[number]>();
+  for (const brief of result.briefs) {
+    const isValidIndex = brief.clusterIndex >= 0 && brief.clusterIndex < qualifyingClusters.length;
+    if (!isValidIndex) continue;
+    if (uniqueBriefByClusterIndex.has(brief.clusterIndex)) continue;
+    uniqueBriefByClusterIndex.set(brief.clusterIndex, brief);
+  }
 
+  // Populate sources from real cluster URLs — never from model output.
+  return Array.from(uniqueBriefByClusterIndex.values()).map((brief) => {
+    const cluster = qualifyingClusters[brief.clusterIndex]!;
+    const uniqueSourceUrls = [...new Set(cluster.candidates.map((candidate) => candidate.url))];
+    return {
+      title: brief.title,
+      summary: brief.summary,
+      sources: uniqueSourceUrls,
+    };
+  });
+}
