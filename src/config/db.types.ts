@@ -1,14 +1,5 @@
 import type { Generated } from "kysely";
 
-interface UsersTable {
-  id: Generated<string>;
-  name: string;
-}
-
-interface TestTable {
-  test_strings: string;
-}
-
 interface FeedStoriesTable {
   id: Generated<string>;
   topic: string;
@@ -45,8 +36,6 @@ interface CandidateStoriesTable {
 }
 
 export interface DB {
-  "template_app.users": UsersTable;
-  "newsapi.test_table": TestTable;
   "newsapi.feed_stories": FeedStoriesTable;
   "newsapi.pipeline_feed_stories": PipelineFeedStoriesTable;
   "newsapi.candidate_stories": CandidateStoriesTable;
