@@ -7,20 +7,18 @@ import type { ChatMessage } from '../../utils/streamStructuredResponse.js';
 import { TOPIC_CONFIGS } from '../../config/topics.js';
 import { feedStoryBatchSchema } from '../../schemas/news/aiLoader.schemas.js';
 import type { AiLoaderBody, FeedStoryBatch, Topic } from '../../schemas/news/aiLoader.schemas.js';
+import {
+  filterStoriesForPersistence,
+  getDeduplicationWindowStart,
+} from './aiLoader.utils.js';
+import type { RecentStoryContext } from './aiLoader.utils.js';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const AILOADER_MODEL = 'gpt-4.1';
 const AILOADER_PROMPT_VERSION = 'v1';
 const EXCERPT_LENGTH = 200;
-const DEDUPLICATION_CONTEXT_SIZE = 30;
-
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-interface RecentStoryContext {
-  title: string;
-  excerpt: string;
-}
+const DEDUPLICATION_LOOKBACK_DAYS = 2;
 
 // ─── Prompt Builder ───────────────────────────────────────────────────────────
 
@@ -52,6 +50,9 @@ function buildLoaderMessages(topic: Topic, recentStories: RecentStoryContext[]):
         ' Each story must be corroborated by at least 3 reputable news sources — list the source URLs.' +
         ' Every source URL cited for a story must be unique — do not repeat the same domain, outlet, or URL more than once within a single story.' +
         ' Do not use Wikipedia as a source.' +
+        ' Include "publishedAt" for each story in YYYY-MM-DD format using the publication date from sources.' +
+        ` Only include stories with publishedAt exactly ${today}.` +
+        ' Exclude older stories unless there is a material same-day development, and still set publishedAt to the date of that new development.' +
         ' Target 10 stories. If fewer than 10 qualify as genuinely new, return only those that do.' +
         ' Do not pad the response with rehashed, duplicate, or marginally updated stories.' +
         deduplicationBlock,
@@ -72,14 +73,16 @@ export const aiLoaderController = asyncHandler(
   async (req: Request<{}, {}, AiLoaderBody>, res: Response) => {
     const { topic } = req.body;
     const requestedAt = new Date().toISOString();
+    const today = new Date().toISOString().split('T')[0]!;
+    const dedupeWindowStart = getDeduplicationWindowStart(new Date(requestedAt));
 
     // 1. Fetch recent stories for deduplication context
     const recentRows = await db
       .selectFrom('newsapi.feed_stories')
       .select(['title', 'summary'])
       .where('topic', '=', topic)
+      .where('created_at', '>=', dedupeWindowStart)
       .orderBy('created_at', 'desc')
-      .limit(DEDUPLICATION_CONTEXT_SIZE)
       .execute();
 
     const recentStories: RecentStoryContext[] = recentRows.map((row) => ({
@@ -90,6 +93,7 @@ export const aiLoaderController = asyncHandler(
     logger.info('aiLoader: fetched deduplication context', {
       topic,
       recentStoriesCount: recentStories.length,
+      lookbackDays: DEDUPLICATION_LOOKBACK_DAYS,
     });
 
     // 2. Build messages with deduplication context embedded
@@ -104,13 +108,8 @@ export const aiLoaderController = asyncHandler(
       tools: [{ type: 'web_search' }],
     });
 
-    // 4. Filter out Wikipedia sources from stories
-    batch.stories = batch.stories
-      .map((story) => ({
-        ...story,
-        sources: story.sources.filter((source) => !/wikipedia/i.test(source)),
-      }))
-      .filter((story) => story.sources.length >= 2);
+    // 4. Enforce same-day recency + dedupe against recent context and current batch
+    batch.stories = filterStoriesForPersistence(batch.stories, recentStories, today);
 
     logger.info('aiLoader: OpenAI returned stories', {
       topic,
