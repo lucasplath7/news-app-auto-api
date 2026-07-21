@@ -17,6 +17,8 @@ jobs:
       - name: Pull latest code
         run: |
           git fetch origin main
+          set -euxo pipefail
+          timeout 120 git fetch --prune --tags --verbose origin main
           git reset --hard origin/main
 
       - name: Rebuild and restart container
