@@ -20,7 +20,8 @@ import type { AiLoaderBody } from '../../schemas/news/aiLoader.schemas.js';
 const LEGITIMACY_THRESHOLD = 0.6;
 const IDEAL_CLUSTER_SOURCE_DOMAINS = 3;
 const FALLBACK_CLUSTER_SOURCE_DOMAINS = 2;
-const MAX_FALLBACK_CLUSTERS = 2;
+const MIN_STORIES_TARGET = 5;
+const MAX_SYNTHESIS_CLUSTERS = 10;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -57,12 +58,12 @@ function selectClustersForSynthesis(clusters: CandidateCluster[]): {
 
   const idealClusters = scoredClusters
     .filter((scoredCluster) => scoredCluster.uniqueSourceDomains >= IDEAL_CLUSTER_SOURCE_DOMAINS)
-    .sort((left, right) => right.averageLegitimacyScore - left.averageLegitimacyScore)
-    .map((scoredCluster) => scoredCluster.cluster);
-
-  if (idealClusters.length > 0) {
-    return { selectedClusters: idealClusters, selectionTier: 'ideal' };
-  }
+    .sort(
+      (left, right) =>
+        right.uniqueSourceDomains - left.uniqueSourceDomains ||
+        right.averageLegitimacyScore - left.averageLegitimacyScore ||
+        right.candidateCount - left.candidateCount,
+    );
 
   const fallbackClusters = scoredClusters
     .filter((scoredCluster) => scoredCluster.uniqueSourceDomains >= FALLBACK_CLUSTER_SOURCE_DOMAINS)
@@ -72,12 +73,7 @@ function selectClustersForSynthesis(clusters: CandidateCluster[]): {
         right.averageLegitimacyScore - left.averageLegitimacyScore ||
         right.candidateCount - left.candidateCount,
     )
-    .slice(0, MAX_FALLBACK_CLUSTERS)
     .map((scoredCluster) => scoredCluster.cluster);
-
-  if (fallbackClusters.length > 0) {
-    return { selectedClusters: fallbackClusters, selectionTier: 'fallback' };
-  }
 
   const bestEffortClusters = scoredClusters
     .sort(
@@ -85,14 +81,38 @@ function selectClustersForSynthesis(clusters: CandidateCluster[]): {
         right.averageLegitimacyScore - left.averageLegitimacyScore ||
         right.candidateCount - left.candidateCount,
     )
-    .slice(0, MAX_FALLBACK_CLUSTERS)
     .map((scoredCluster) => scoredCluster.cluster);
 
-  if (bestEffortClusters.length > 0) {
-    return { selectedClusters: bestEffortClusters, selectionTier: 'best-effort' };
+  const selectedClusters: CandidateCluster[] = [];
+  const seenClusterIds = new Set<string>();
+  let selectionTier: 'ideal' | 'fallback' | 'best-effort' | 'none' = 'none';
+
+  const addClusters = (candidateClusters: CandidateCluster[], maxToTake = Infinity) => {
+    let taken = 0;
+    for (const cluster of candidateClusters) {
+      if (seenClusterIds.has(cluster.clusterId)) continue;
+      selectedClusters.push(cluster);
+      seenClusterIds.add(cluster.clusterId);
+      taken++;
+      if (selectedClusters.length >= MAX_SYNTHESIS_CLUSTERS || taken >= maxToTake) break;
+    }
+  };
+
+  addClusters(idealClusters.map((scoredCluster) => scoredCluster.cluster));
+  if (selectedClusters.length > 0) selectionTier = 'ideal';
+
+  if (selectedClusters.length < MIN_STORIES_TARGET) {
+    addClusters(fallbackClusters);
+    if (selectionTier === 'none' && selectedClusters.length > 0) selectionTier = 'fallback';
   }
 
-  return { selectedClusters: [], selectionTier: 'none' };
+  if (selectedClusters.length < MIN_STORIES_TARGET) {
+    addClusters(bestEffortClusters, MIN_STORIES_TARGET - selectedClusters.length);
+    if (selectionTier === 'none' && selectedClusters.length > 0) selectionTier = 'best-effort';
+  }
+
+  if (selectedClusters.length === 0) return { selectedClusters: [], selectionTier: 'none' };
+  return { selectedClusters, selectionTier };
 }
 
 // ─── Controller ───────────────────────────────────────────────────────────────
