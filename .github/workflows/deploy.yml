@@ -25,6 +25,12 @@ jobs:
           REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
-          docker compose down
-          docker compose up -d --build
+          trap 'rm -f .env' EXIT
+          cat > .env <<EOF
+          DB_URL=${DB_URL}
+          REDIS_PASSWORD=${REDIS_PASSWORD}
+          OPENAI_API_KEY=${OPENAI_API_KEY}
+          EOF
+          docker compose --env-file .env down
+          docker compose --env-file .env up -d --build
           docker image prune -f
