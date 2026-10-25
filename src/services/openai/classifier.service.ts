@@ -4,7 +4,7 @@ import type { CandidateStory, ClassificationItem } from '../../schemas/news/aiPi
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const CLASSIFIER_MODEL = 'gpt-4.1-nano';
+const CLASSIFIER_MODEL = 'gpt-6-luna';
 
 // ─── Public API ───────────────────────────────────────────────────────────────
 

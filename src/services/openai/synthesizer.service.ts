@@ -14,7 +14,7 @@ export interface StoryBrief {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const SYNTHESIZER_MODEL = 'gpt-4.1-mini';
+const SYNTHESIZER_MODEL = 'gpt-6-luna';
 
 // ─── Public API ───────────────────────────────────────────────────────────────
 

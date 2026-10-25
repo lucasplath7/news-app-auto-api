@@ -10,7 +10,7 @@ import type { AiLoaderBody, FeedStoryBatch, Topic } from '../../schemas/news/aiL
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const AILOADER_MODEL = 'gpt-4.1';
+const AILOADER_MODEL = 'gpt-6-luna';
 const AILOADER_PROMPT_VERSION = 'v1';
 const EXCERPT_LENGTH = 200;
 const DEDUPLICATION_CONTEXT_SIZE = 30;
