@@ -6,7 +6,7 @@ import type { Topic } from '../../schemas/news/aiLoader.schemas.js';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const WEB_SEARCH_MODEL = 'gpt-4.1-mini';
+const WEB_SEARCH_MODEL = 'gpt-6-luna';
 
 // ─── Public API ───────────────────────────────────────────────────────────────
 
