@@ -26,6 +26,7 @@ export async function classifyCandidates(
 
   const result = await callStructuredOpenAI({
     model: CLASSIFIER_MODEL,
+    reasoningEffort: 'low',
     messages: [
       {
         role: 'system',

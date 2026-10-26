@@ -28,7 +28,7 @@ describe('feed OpenAI models', () => {
     dbSelectFromMock.mockReset();
   });
 
-  it('uses gpt-6-luna for the standard feed', async () => {
+  it('uses gpt-6-luna with low reasoning effort for the standard feed', async () => {
     const queryBuilder = {
       select: vi.fn().mockReturnThis(),
       where: vi.fn().mockReturnThis(),
@@ -51,21 +51,21 @@ describe('feed OpenAI models', () => {
 
     await vi.waitFor(() => expect(response.json).toHaveBeenCalled());
     expect(callStructuredOpenAIMock).toHaveBeenCalledWith(
-      expect.objectContaining({ model: 'gpt-6-luna' }),
+      expect.objectContaining({ model: 'gpt-6-luna', reasoningEffort: 'low' }),
     );
   });
 
-  it('uses gpt-6-luna for pipeline candidate search and classification', async () => {
+  it('uses gpt-6-luna with low reasoning effort for pipeline candidate search and classification', async () => {
     callStructuredOpenAIMock.mockResolvedValueOnce({ candidates: [] });
     await fetchWebSearchCandidates('us-politics', '2026-10-25');
     expect(callStructuredOpenAIMock).toHaveBeenLastCalledWith(
-      expect.objectContaining({ model: 'gpt-6-luna' }),
+      expect.objectContaining({ model: 'gpt-6-luna', reasoningEffort: 'low' }),
     );
 
     callStructuredOpenAIMock.mockResolvedValueOnce({ classifications: [] });
     await classifyCandidates([], 'United States politics');
     expect(callStructuredOpenAIMock).toHaveBeenLastCalledWith(
-      expect.objectContaining({ model: 'gpt-6-luna' }),
+      expect.objectContaining({ model: 'gpt-6-luna', reasoningEffort: 'low' }),
     );
   });
 });

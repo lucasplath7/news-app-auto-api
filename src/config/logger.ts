@@ -1,4 +1,15 @@
-const formatMeta = (meta?: unknown) => (meta ? ` ${JSON.stringify(meta)}` : "");
+import { getErrorDetails } from "../utils/errorDetails.js";
+
+const formatMeta = (meta?: unknown) => {
+  if (!meta) return "";
+
+  try {
+    const serializableMeta = meta instanceof Error ? getErrorDetails(meta) : meta;
+    return ` ${JSON.stringify(serializableMeta)}`;
+  } catch {
+    return " {\"message\":\"Unable to serialize log metadata\"}";
+  }
+};
 
 export const logger = {
   info(message: string, meta?: unknown) {

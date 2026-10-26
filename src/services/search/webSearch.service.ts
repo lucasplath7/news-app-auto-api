@@ -23,6 +23,7 @@ export async function fetchWebSearchCandidates(
 
   const result = await callStructuredOpenAI({
     model: WEB_SEARCH_MODEL,
+    reasoningEffort: 'low',
     messages: [
       {
         role: 'system',

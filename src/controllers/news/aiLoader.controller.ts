@@ -98,6 +98,7 @@ export const aiLoaderController = asyncHandler(
     // 3. Call OpenAI and parse the structured batch
     const batch = await callStructuredOpenAI<FeedStoryBatch>({
       model: AILOADER_MODEL,
+      reasoningEffort: 'low',
       messages,
       batchSchema: feedStoryBatchSchema,
       batchSchemaName: 'feed_story_batch',

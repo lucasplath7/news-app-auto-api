@@ -49,6 +49,7 @@ export async function synthesizeClusters(
 
   const result = await callStructuredOpenAI<SynthesizedBriefBatch>({
     model: SYNTHESIZER_MODEL,
+    reasoningEffort: 'low',
     messages: [
       { role: 'system', content: systemPrompt },
       {

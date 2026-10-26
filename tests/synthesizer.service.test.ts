@@ -67,7 +67,7 @@ describe('synthesizeClusters', () => {
     const briefs = await synthesizeClusters(clusters, 'world news', 'system prompt');
 
     expect(callStructuredOpenAIMock).toHaveBeenCalledWith(
-      expect.objectContaining({ model: 'gpt-6-luna' }),
+      expect.objectContaining({ model: 'gpt-6-luna', reasoningEffort: 'low' }),
     );
     expect(briefs).toEqual([
       { title: 'Brief A', summary: 'Summary A.', sources: ['https://example.com/a1'] },

@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { env } from '../../config/env.js';
 import { logger } from '../../config/logger.js';
 import { AppError } from '../../utils/appError.js';
+import { getErrorDetails } from '../../utils/errorDetails.js';
 import type { ChatMessage } from '../../utils/streamStructuredResponse.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -18,6 +19,7 @@ export interface StructuredOpenAIConfig<TBatch> {
   batchSchema: ZodType<TBatch>;
   batchSchemaName: string;
   tools?: Tool[];
+  reasoningEffort?: 'low' | 'medium' | 'high';
 }
 
 // ─── Retry Helper ─────────────────────────────────────────────────────────────
@@ -32,14 +34,31 @@ async function withRetry<T>(fn: () => Promise<T>, retries = MAX_RETRIES): Promis
       return await fn();
     } catch (err: any) {
       lastError = err;
+      const errorDetails = getErrorDetails(err);
+      const nestedProviderError =
+        typeof errorDetails.error === 'object' && errorDetails.error !== null
+          ? errorDetails.error as Record<string, unknown>
+          : undefined;
+      const status = errorDetails.status ?? nestedProviderError?.status;
+      const code = errorDetails.code ?? nestedProviderError?.code;
       const isRetryable =
-        err?.status === 429 ||
-        err?.status === 500 ||
-        err?.status === 503 ||
-        err?.code === 'ECONNRESET' ||
-        err?.code === 'ETIMEDOUT';
+        status === 408 ||
+        status === 409 ||
+        status === 429 ||
+        (typeof status === 'number' && status >= 500) ||
+        code === 'model_overloaded' ||
+        code === 'ECONNRESET' ||
+        code === 'ETIMEDOUT' ||
+        code === 'ECONNREFUSED';
       if (!isRetryable || attempt === retries) break;
       const delay = RETRY_BASE_DELAY_MS * 2 ** attempt;
+      logger.warn('Retrying OpenAI request after transient failure', {
+        attempt: attempt + 1,
+        maxRetries: retries,
+        status,
+        code,
+        delayMs: delay,
+      });
       await new Promise((resolve) => setTimeout(resolve, delay));
     }
   }
@@ -84,17 +103,64 @@ export async function callStructuredOpenAI<TBatch>(
 ): Promise<TBatch> {
   const client = new OpenAI({ apiKey: env.OPENAI_API_KEY, timeout: undefined });
 
-  const response = await withRetry(() =>
-    client.responses.create({
+  let response;
+  try {
+    response = await withRetry(() =>
+      client.responses.create({
+        model: config.model,
+        input: config.messages as any,
+        ...(config.tools?.length ? { tools: config.tools } : {}),
+        ...(config.reasoningEffort
+          ? { reasoning: { effort: config.reasoningEffort } }
+          : {}),
+        max_output_tokens: 4096,
+        text: {
+          format: zodTextFormat(config.batchSchema as z.ZodTypeAny, config.batchSchemaName),
+        },
+      }),
+    );
+  } catch (error) {
+    const errorDetails = getErrorDetails(error);
+    const nestedProviderError =
+      typeof errorDetails.error === 'object' && errorDetails.error !== null
+        ? errorDetails.error as Record<string, unknown>
+        : undefined;
+    const providerMessage =
+      typeof nestedProviderError?.message === 'string'
+        ? nestedProviderError.message
+        : typeof errorDetails.message === 'string'
+          ? errorDetails.message
+          : 'The OpenAI request failed without a message';
+    const statusValue = errorDetails.status ?? nestedProviderError?.status;
+    const codeValue = errorDetails.code ?? nestedProviderError?.code;
+    const typeValue = errorDetails.type ?? nestedProviderError?.type;
+    const providerStatus = typeof statusValue === 'number' ? statusValue : undefined;
+    const providerCode = typeof codeValue === 'string' ? codeValue : undefined;
+    const providerType = typeof typeValue === 'string' ? typeValue : undefined;
+    const requestId = errorDetails.request_id ?? errorDetails.requestId;
+
+    logger.error('OpenAI structured request failed', {
       model: config.model,
-      input: config.messages as any,
-      ...(config.tools?.length ? { tools: config.tools } : {}),
-      max_output_tokens: 4096,
-      text: {
-        format: zodTextFormat(config.batchSchema as z.ZodTypeAny, config.batchSchemaName),
-      },
-    }),
-  );
+      message: providerMessage,
+      status: providerStatus,
+      code: providerCode,
+      type: providerType,
+      requestId,
+      cause: errorDetails.cause,
+    });
+
+    const statusCode = providerStatus && providerStatus >= 400 && providerStatus < 500
+      ? 502
+      : 503;
+    throw new AppError(statusCode, `OpenAI request failed: ${providerMessage}`, {
+      provider: 'openai',
+      model: config.model,
+      status: providerStatus,
+      code: providerCode,
+      type: providerType,
+      requestId,
+    });
+  }
 
   logger.info('OpenAI structured response completed', { usage: (response as any).usage });
 
@@ -112,11 +178,6 @@ export async function callStructuredOpenAI<TBatch>(
     throw new AppError(500, 'OpenAI response was not valid JSON');
   }
 
-  try {
-    return config.batchSchema.parse(rawJson);
-  } catch (err: any) {
-    throw new AppError(500, err.message);
-  }
 
   try {
     return config.batchSchema.parse(rawJson);
