@@ -177,24 +177,6 @@ export const aiPipelineLoaderController = asyncHandler(
       topicConfig.systemPrompt,
     );
 
-    // ── Stage 5: Persist synthesized stories to pipeline_feed_stories ────────
-    let savedCount = 0;
-    if (synthesizedStories.length > 0) {
-      await db
-        .insertInto('newsapi.pipeline_feed_stories')
-        .values(
-          synthesizedStories.map((story) => ({
-            pipeline_run_id: pipelineRunId,
-            topic,
-            title: story.title,
-            summary: story.summary,
-            sources: story.sources,
-          })),
-        )
-        .execute();
-      savedCount = synthesizedStories.length;
-    }
-
     // ── Audit: persist all candidates with their pipeline metadata ────────────
     const synthesizedClusterIds = new Set(selectedClusters.map((cluster) => cluster.clusterId));
     const clusterIdByUrl = new Map(
@@ -203,36 +185,57 @@ export const aiPipelineLoaderController = asyncHandler(
       ),
     );
 
-    if (classifiedCandidates.length > 0) {
-      await db
-        .insertInto('newsapi.candidate_stories')
-        .values(
-          classifiedCandidates.map((candidate) => {
-            const clusterId = clusterIdByUrl.get(candidate.url) ?? null;
-            const isRejected =
-              candidate.isDuplicate || candidate.legitimacyScore < LEGITIMACY_THRESHOLD;
-            const status = isRejected
-              ? 'rejected'
-              : clusterId !== null && synthesizedClusterIds.has(clusterId)
-                ? 'synthesized'
-                : 'classified';
-            return {
+    // Publish the feed and its candidate audit together. All external work
+    // has completed before opening this short database transaction.
+    await db.transaction().execute(async (transaction) => {
+      if (synthesizedStories.length > 0) {
+        await transaction
+          .insertInto('newsapi.pipeline_feed_stories')
+          .values(
+            synthesizedStories.map((story) => ({
               pipeline_run_id: pipelineRunId,
               topic,
-              title: candidate.title,
-              url: candidate.url,
-              snippet: candidate.snippet,
-              source_domain: candidate.sourceDomain,
-              legitimacy_score: candidate.legitimacyScore,
-              is_duplicate: candidate.isDuplicate,
-              sub_topic: candidate.subTopic,
-              cluster_id: clusterId,
-              status,
-            };
-          }),
-        )
-        .execute();
-    }
+              title: story.title,
+              summary: story.summary,
+              sources: story.sources,
+            })),
+          )
+          .execute();
+      }
+
+      if (classifiedCandidates.length > 0) {
+        await transaction
+          .insertInto('newsapi.candidate_stories')
+          .values(
+            classifiedCandidates.map((candidate) => {
+              const clusterId = clusterIdByUrl.get(candidate.url) ?? null;
+              const isRejected =
+                candidate.isDuplicate || candidate.legitimacyScore < LEGITIMACY_THRESHOLD;
+              const status = isRejected
+                ? 'rejected'
+                : clusterId !== null && synthesizedClusterIds.has(clusterId)
+                  ? 'synthesized'
+                  : 'classified';
+              return {
+                pipeline_run_id: pipelineRunId,
+                topic,
+                title: candidate.title,
+                url: candidate.url,
+                snippet: candidate.snippet,
+                source_domain: candidate.sourceDomain,
+                legitimacy_score: candidate.legitimacyScore,
+                is_duplicate: candidate.isDuplicate,
+                sub_topic: candidate.subTopic,
+                cluster_id: clusterId,
+                status,
+              };
+            }),
+          )
+          .execute();
+      }
+    });
+
+    const savedCount = synthesizedStories.length;
 
     if (savedCount === 0) {
       logger.warn('aiPipelineLoader: no stories synthesized — check cluster quality', {

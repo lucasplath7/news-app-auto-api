@@ -1,25 +1,76 @@
-name: Deploy React App
+name: Test and deploy API
 
 on:
   push:
-    branches:
-      - main
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: api-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
-  deploy:
-    runs-on: self-hosted
+  unit:
+    name: Build and unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npm run test:unit
 
+  integration:
+    name: PostgreSQL integration tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: news_test
+          POSTGRES_PASSWORD: ci_test_password
+          POSTGRES_DB: newsapi_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U news_test -d newsapi_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      TEST_DB_URL: postgresql://news_test:ci_test_password@127.0.0.1:5432/newsapi_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # The suite applies the SQL migrations before exercising the real database.
+      - run: npm run test:integration
+
+  deploy:
+    name: Deploy tested main commit
+    needs: [unit, integration]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: self-hosted
     defaults:
       run:
+        shell: bash
         working-directory: /home/lucas/apis/news-app-auto-api
-
     steps:
-      - name: Pull latest code
+      - name: Fetch the tested commit
+        env:
+          DEPLOY_SHA: ${{ github.sha }}
         run: |
-          git fetch origin main
-          set -euxo pipefail
-          timeout 120 git fetch --prune --tags --verbose origin main
-          git reset --hard origin/main
+          set -euo pipefail
+          timeout 120 git fetch --prune origin main
+          git reset --hard "$DEPLOY_SHA"
 
       - name: Rebuild and restart container
         env:
@@ -27,12 +78,14 @@ jobs:
           REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
+          set -euo pipefail
+          umask 077
           trap 'rm -f .env' EXIT
-          cat > .env <<EOF
+          cat > .env <<EOF_ENV
           DB_URL=${DB_URL}
           REDIS_PASSWORD=${REDIS_PASSWORD}
           OPENAI_API_KEY=${OPENAI_API_KEY}
-          EOF
+          EOF_ENV
           docker compose --env-file .env down
           docker compose --env-file .env up -d --build
           docker image prune -f
